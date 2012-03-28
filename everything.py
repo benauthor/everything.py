@@ -1,3 +1,9 @@
+"""
+everything.py is a stock/flow modeling kit for system dynamics
+
+"""
+
+
 class UnitsError(Exception):
     pass
 
@@ -19,7 +25,6 @@ class Simulator:
                     raise UnitsError("Your time units don't match.")
             except AttributeError:
                 pass
-
 
     def print_objects(self):
         for o in self.objects:
@@ -61,9 +66,12 @@ class Flow:
     """
     A flow is a way quantities move among stocks.
 
-    A flow's unit is a rate unit; it involves time. Meters per second, Watt-hours.
+    A flow's unit is a rate unit; i.e. a quantity per unit time. Meters per
+    second, gallons per minute, etc. 'Modifiers' are little lambda functions
+    modify a flow on each step of the simulator.
     """
-    def __init__(self, modifiers=[], quantity=0, unit="Units", time_step="Second", name=""):
+    def __init__(self, modifiers=[], quantity=0, unit="Units",
+                 time_step="Second", name=""):
         self.modifiers = modifiers
         self.quantity = quantity
         self.unit = unit
@@ -76,12 +84,25 @@ class Flow:
 
     def step(self):
         for m in self.modifiers:
-            self.quantity = self.quantity + m
+            self.quantity = m(self.quantity)
 
-# TODO flow modifiers not just a static number... give them a formula to vary
-# over time.
-faucet = Flow([-0.08], 1, "Ounce", "Second", "Faucet") # make some flow
-cup = Stock([faucet], 2, "Ounces", "Cup") # make some stocks
+faucet = Flow(              # make a flow!
+    [                       # list of modifiers
+        lambda x: x + 0.1, 
+        lambda x: x * 1.1
+        ],
+    1,                      # initial quantity
+    "Ounce",                # unit
+    "Second",               # per unit time
+    "Faucet"                # name
+    )
 
-s = Simulator([faucet, cup]) # put them in a simulator
-s.run() # and run it
+cup = Stock(                # make a stock!
+    [faucet],               # list of flows in and out
+    2,                      # initial quantity
+    "Ounces",               # unit
+    "Cup"                   # name
+    )
+
+s = Simulator([faucet, cup])# put them in a simulator
+s.run()                     # and run it
