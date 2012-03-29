@@ -1,6 +1,27 @@
 """
 everything.py is a stock/flow modeling kit for system dynamics
 
+
+faucet = Flow(              # make a flow!
+    [                       # list of modifiers
+        lambda x: x + 0.1, 
+        lambda x: x * 1.1
+        ],
+    1,                      # initial quantity
+    "Ounce",                # unit
+    "Second",               # per unit time
+    "Faucet"                # name
+    )
+
+cup = Stock(                # make a stock!
+    [faucet],               # list of flows in and out
+    2,                      # initial quantity
+    "Ounces",               # unit
+    "Cup"                   # name
+    )
+
+s = Simulator([faucet, cup])# put them in a simulator
+s.run()                     # and run it
 """
 
 
@@ -10,28 +31,33 @@ class UnitsError(Exception):
 class Simulator:
     """Stepwise stock/flow simulator.
 
-    Set step_time to number of seconds per step."""
-    def __init__(self, objects, step_time=1, steps=10):
+    """
+    def __init__(self, objects, time_step="Second", steps=10):
         self.objects = objects
-        self.step_time = step_time
+        self.time_step = time_step
         self.steps = steps
 
     def reconcile_time_units(self):
+        m = ""
         for o in self.objects:
             try:
-                if o.time_step in ["Second", "second", "Seconds", "seconds"]:
-                    print "Units OK"
+                if o.time_step == self.time_step:
+                    m = "Units OK"
                 else:
-                    raise UnitsError("Your time units don't match.")
-            except AttributeError:
+                    raise UnitsError("Your time units don't match. Simulator\
+                                     time is in {0}, but {1} time is in\
+                                     {2}".format(self.time_step, o.name,
+                                                 o.time_step))
+            except AttributeError: # Stocks won't have a time_step
                 pass
+        return m
 
     def print_objects(self):
         for o in self.objects:
             print o
 
     def run(self):
-        self.reconcile_time_units()
+        print self.reconcile_time_units()
         print "Beginning quantities:"
         self.print_objects()
         for step in xrange(self.steps):
@@ -85,24 +111,3 @@ class Flow:
     def step(self):
         for m in self.modifiers:
             self.quantity = m(self.quantity)
-
-faucet = Flow(              # make a flow!
-    [                       # list of modifiers
-        lambda x: x + 0.1, 
-        lambda x: x * 1.1
-        ],
-    1,                      # initial quantity
-    "Ounce",                # unit
-    "Second",               # per unit time
-    "Faucet"                # name
-    )
-
-cup = Stock(                # make a stock!
-    [faucet],               # list of flows in and out
-    2,                      # initial quantity
-    "Ounces",               # unit
-    "Cup"                   # name
-    )
-
-s = Simulator([faucet, cup])# put them in a simulator
-s.run()                     # and run it
