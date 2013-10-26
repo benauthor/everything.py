@@ -31,7 +31,6 @@ s.run(10)                      # and run it for 10 steps
 from collections import namedtuple
 
 PolarFlow = namedtuple('PolarFlow', ['flow', 'polarity'])
-registry = {}
 
 
 class UnitsError(Exception):
@@ -51,12 +50,12 @@ class Simulator(object):
     def register(self, objects):
         for o in objects:
             try:
-                o.quantity
+                o.quantity  # if it has a quantity, it's a stock
                 self.stocks[o.name] = o
-                registry[o.name] = o  # TODO this is simplistic and dumb
+                o.simulation = self
             except AttributeError:
                 self.flows[o.name] = o
-                registry[o.name] = o  # TODO this is simplistic and dumb
+                o.simulation = self
 
     def check_time_units(self):
         for k, f in self.flows.iteritems():
@@ -97,6 +96,7 @@ class Stock(object):
         self.quantity = quantity
         self.qunit = qunit
         self.name = name
+        self.simulation = None
 
     def __str__(self):
         return "Stock '{0}': {1} {2}".format(self.name, self.quantity,
@@ -105,9 +105,9 @@ class Stock(object):
     def step(self):
         for f in self.flows:
             if f.polarity == 'OUT':
-                self.quantity -= registry[f.flow].calc()
+                self.quantity -= self.simulation.flows[f.flow].calc()
             else:
-                self.quantity += registry[f.flow].calc()
+                self.quantity += self.simulation.flows[f.flow].calc()
 
     def check(self):
         for f in self.flows:
@@ -133,6 +133,7 @@ class Flow(object):
         self.qunit = qunit
         self.tunit = tunit
         self.name = name
+        self.simulation = None
 
     def __str__(self):
         return "Flow '{0}': {1} {2}/{3}".format(self.name, self.calc(),
