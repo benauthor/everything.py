@@ -1,94 +1,126 @@
 """
-everything.py is a stock/flow modeling kit for system dynamics
+everything.py is a stock/flow modeling kit for simulation
+
+Example:
+
+def faucetflow(max_flow, handle_position):
+    return max_flow * handle_position
 
 
-faucet = Flow(              # make a flow!
-    [                       # list of modifiers
-        lambda x: x + 0.1, 
-        lambda x: x * 1.1
-        ],
-    1,                      # initial quantity
-    "Ounce",                # unit
-    "Second",               # per unit time
-    "Faucet"                # name
+faucet = Flow(                 # make a flow!
+    name="Faucet",             # name
+    func=faucetflow,           # the function that calculates the rate
+    args=[                     # the inputs to the function.
+        10.0,                  # these could be constants
+        lookup('hpos')         # or looked up from the environment
+    ],
+    qunit="Ounce",             # unit of quantity
+    tunit="Second"             # per unit time
     )
 
-cup = Stock(                # make a stock!
-    [faucet],               # list of flows in and out
-    2,                      # initial quantity
-    "Ounces",               # unit
-    "Cup"                   # name
+cup = Stock(                   # make a stock!
+    flows=(("Faucet", "IN")),  # list of flows in and out
+    quantity=2,                # initial quantity
+    qunit="Ounce",             # unit
+    name="Cup"                 # name
     )
 
-s = Simulator([faucet, cup])# put them in a simulator
-s.run()                     # and run it
+s = Simulator([faucet, cup])   # put them in a simulator
+s.run(10)                      # and run it for 10 steps
+
 """
+from collections import namedtuple
+
+PolarFlow = namedtuple('PolarFlow', ['flow', 'polarity'])
+registry = {}
 
 
 class UnitsError(Exception):
     pass
 
-class Simulator:
+
+class Simulator(object):
     """Stepwise stock/flow simulator.
 
     """
-    def __init__(self, objects, time_step="Second", steps=10):
-        self.objects = objects
-        self.time_step = time_step
-        self.steps = steps
+    def __init__(self, objects, tunit="Second"):
+        self.stocks = {}
+        self.flows = {}
+        self.register(objects)
+        self.tunit = tunit
 
-    def reconcile_time_units(self):
-        m = ""
-        for o in self.objects:
+    def register(self, objects):
+        for o in objects:
             try:
-                if o.time_step == self.time_step:
-                    m = "Units OK"
-                else:
-                    raise UnitsError("Your time units don't match. Simulator\
+                o.quantity
+                self.stocks[o.name] = o
+                registry[o.name] = o  # TODO this is simplistic and dumb
+            except AttributeError:
+                self.flows[o.name] = o
+                registry[o.name] = o  # TODO this is simplistic and dumb
+
+    def check_time_units(self):
+        for k, f in self.flows.iteritems():
+            if f.tunit != self.tunit:
+                raise UnitsError("Your time units don't match. Simulator\
                                      time is in {0}, but {1} time is in\
-                                     {2}".format(self.time_step, o.name,
-                                                 o.time_step))
-            except AttributeError: # Stocks won't have a time_step
-                pass
-        return m
+                                     {2}".format(self.tunit, f.name, f.tunit))
+        return True
 
-    def print_objects(self):
-        for o in self.objects:
-            print o
+    def status(self):
+        for k, s in self.stocks.iteritems():
+            print s
+        for k, f in self.flows.iteritems():
+            print f
 
-    def run(self):
-        print self.reconcile_time_units()
-        print "Beginning quantities:"
-        self.print_objects()
-        for step in xrange(self.steps):
+    def run(self, n):
+        self.check_time_units()
+        print "Step 0"
+        self.status()
+        for step in xrange(n):
             print "Step " + str(step+1)
-            for o in self.objects:
-                o.step()
-                print o
+            for k, s in self.stocks.iteritems():
+                s.step()
+            self.status()
 
 
-class Stock:
+class Stock(object):
     """
     A stock is a container for a quantity.
 
-    Incoming and outgoing flows may increase or decrease the quantity over time.
-    A stock's unit should be a measure of quantity: distance, volume, energy, etc.
+    Incoming and outgoing flows may increase or decrease the quantity over
+    time. A stock's unit should be a measure of quantity: distance, volume,
+    energy, etc.
     """
-    def __init__(self, flows=[], quantity=0, unit="Units", name=""):
-        self.flows = flows
+    def __init__(self, flows=[], quantity=0, qunit="Unit", name=""):
+        #import pdb; pdb.set_trace()
+        self.flows = [PolarFlow(*f) for f in flows]
         self.quantity = quantity
-        self.unit = unit
+        self.qunit = qunit
         self.name = name
 
     def __str__(self):
-        return "Stock '{0}': {1} {2}".format(self.name, self.quantity, self.unit)
+        return "Stock '{0}': {1} {2}".format(self.name, self.quantity,
+                                             self.qunit)
 
     def step(self):
         for f in self.flows:
-            self.quantity = self.quantity + f.quantity
+            if f.polarity == 'OUT':
+                self.quantity -= registry[f.flow].calc()
+            else:
+                self.quantity += registry[f.flow].calc()
+
+    def check(self):
+        for f in self.flows:
+            if f.qunit != self.qunit:
+                raise UnitsError("Your quantity units don't match. {0}\
+                                     time is in {0}, but {1} time is in\
+                                     {2}".format(self.name, self.tunit,
+                                                 f.name, f.tunit))
+        return True
 
 
-class Flow:
+class Flow(object):
     """
     A flow is a way quantities move among stocks.
 
@@ -96,18 +128,20 @@ class Flow:
     second, gallons per minute, etc. 'Modifiers' are little lambda functions
     modify a flow on each step of the simulator.
     """
-    def __init__(self, modifiers=[], quantity=0, unit="Units",
-                 time_step="Second", name=""):
-        self.modifiers = modifiers
-        self.quantity = quantity
-        self.unit = unit
-        self.time_step = time_step
+    def __init__(self, func=lambda x: x, argmap={}, qunit="Unit",
+                 tunit="Second", name=""):
+        self.func = func
+        self.argmap = argmap
+        self.qunit = qunit
+        self.tunit = tunit
         self.name = name
 
     def __str__(self):
-        return "Flow '{0}': {1} {2}/{3}".format(self.name, self.quantity,
-                                                self.unit, self.time_step)
+        return "Flow '{0}': {1} {2}/{3}".format(self.name, self.calc(),
+                                                self.qunit, self.tunit)
 
-    def step(self):
-        for m in self.modifiers:
-            self.quantity = m(self.quantity)
+    def calc(self):
+        try:
+            return self.func(**self.argmap)
+        except TypeError:
+            return self.func(*self.argmap)
