@@ -6,7 +6,6 @@ Example:
 def faucetflow(max_flow, handle_position):
     return max_flow * handle_position
 
-
 faucet = Flow(                 # make a flow!
     name="Faucet",             # name
     func=faucetflow,           # the function that calculates the rate
@@ -125,8 +124,7 @@ class Flow(object):
     A flow is a way quantities move among stocks.
 
     A flow's unit is a rate unit; i.e. a quantity per unit time. Meters per
-    second, gallons per minute, etc. 'Modifiers' are little lambda functions
-    modify a flow on each step of the simulator.
+    second, gallons per minute, etc.
     """
     def __init__(self, func=lambda x: x, argmap={}, qunit="Unit",
                  tunit="Second", name=""):
