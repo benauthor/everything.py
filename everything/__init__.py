@@ -30,16 +30,59 @@ s.run(10)                      # and run it for 10 steps
 """
 from collections import namedtuple
 
+ENV = {}
+
 PolarFlow = namedtuple('PolarFlow', ['flow', 'polarity'])
+
+RegistryEntry = namedtuple('RegistryEntry', ['simulator', 'type',
+                                             'quantities'])
 
 
 class UnitsError(Exception):
     pass
 
 
+class EnvironmentError(Exception):
+    pass
+
+
+def register(name, value):
+    """Add an entry to the global registry.
+
+    TODO: should this be simulator-local?
+    """
+    if ENV.get(name):
+        raise EnvironmentError("Dupicate name! The environment already\
+                                contains the name {0}".format(name))
+    else:
+        ENV[name] = value
+
+
+def update(name, value):
+    """Update the registry with a new value.
+    """
+    if not ENV.get(name):
+        raise EnvironmentError("Environment does not contain name\
+                                {0}".format(name))
+    else:
+        ENV[name].quantities.insert(0, value)
+
+
+def lookup(name):
+    """Look up the most recent value for a name in the registry.
+    """
+    entry = ENV.get(name)
+    if not entry:
+        raise EnvironmentError("Environment does not contain name\
+                                {0}".format(name))
+    else:
+        return entry.quantities[0]
+
+
 class Simulator(object):
     """Stepwise stock/flow simulator.
 
+    For simulating things.
     """
     def __init__(self, objects, tunit="Second"):
         self.stocks = {}
@@ -53,9 +96,11 @@ class Simulator(object):
                 o.quantity  # if it has a quantity, it's a stock
                 self.stocks[o.name] = o
                 o.simulation = self
+                register(o.name, RegistryEntry(self, 'stock', [o.quantity]))
             except AttributeError:
                 self.flows[o.name] = o
                 o.simulation = self
+                register(o.name, RegistryEntry(self, 'flow', []))
 
     def check_time_units(self):
         for k, f in self.flows.iteritems():
@@ -65,7 +110,12 @@ class Simulator(object):
                                      {2}".format(self.tunit, f.name, f.tunit))
         return True
 
+    #TODO
+    def check_quantity_units(self):
+        pass
+
     def status(self):
+        #print "ENV:", ENV
         for k, s in self.stocks.iteritems():
             print s
         for k, f in self.flows.iteritems():
@@ -77,8 +127,12 @@ class Simulator(object):
         self.status()
         for step in xrange(n):
             print "Step " + str(step+1)
+            # step the stocks
             for k, s in self.stocks.iteritems():
                 s.step()
+            # step the flows
+            for k, f in self.flows.iteritems():
+                f.step()
             self.status()
 
 
@@ -108,6 +162,8 @@ class Stock(object):
                 self.quantity -= self.simulation.flows[f.flow].calc()
             else:
                 self.quantity += self.simulation.flows[f.flow].calc()
+        # after all is said and done, update the registry
+        update(self.name, self.quantity)
 
     def check(self):
         for f in self.flows:
@@ -139,8 +195,18 @@ class Flow(object):
         return "Flow '{0}': {1} {2}/{3}".format(self.name, self.calc(),
                                                 self.qunit, self.tunit)
 
+    def step(self):
+        update(self.name, self.calc())
+
     def calc(self):
-        try:
-            return self.func(**self.argmap)
+        prepared = []
+        for i, v in enumerate(self.argmap):
+            if isinstance(v, str):
+                prepared.append(eval(v))
+            else:
+                prepared.append(v)
+
+        try:  # TODO above needs to work for dicts too
+            return self.func(**prepared)
         except TypeError:
-            return self.func(*self.argmap)
+            return self.func(*prepared)

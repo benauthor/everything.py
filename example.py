@@ -1,4 +1,4 @@
-from ..everything import Flow, Stock, Simulator
+from everything import Flow, Stock, Simulator, lookup
 
 # faucet = Flow(              # make a flow!
 #     [                       # list of modifiers
@@ -30,8 +30,8 @@ faucet = Flow(                 # make a flow!
     name="Faucet",             # name
     func=faucetflow,           # the function that calculates the rate
     argmap=[                     # the inputs to the function.
-        10.0,                  # these could be constants
-        0.25                    # or looked up from the environment
+        2.0,                  # these could be constants
+        "lookup('Cup') * 0.25"    # or looked up from the environment
     ],
     qunit="Ounce",             # unit of quantity
     tunit="Second"             # per unit time
