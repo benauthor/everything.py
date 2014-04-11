@@ -30,6 +30,7 @@ s.run(10)                      # and run it for 10 steps
 """
 from collections import namedtuple
 import pprint
+import plot
 
 pp = pprint.PrettyPrinter()
 ENV = {}
