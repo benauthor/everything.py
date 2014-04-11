@@ -29,7 +29,9 @@ s.run(10)                      # and run it for 10 steps
 
 """
 from collections import namedtuple
+import pprint
 
+pp = pprint.PrettyPrinter()
 ENV = {}
 
 PolarFlow = namedtuple('PolarFlow', ['flow', 'polarity'])
@@ -84,11 +86,16 @@ class Simulator(object):
 
     For simulating things.
     """
-    def __init__(self, objects, tunit="Second"):
+    def __init__(self, objects, tunit="Second", log=True):
         self.stocks = {}
         self.flows = {}
         self.register(objects)
         self.tunit = tunit
+        self.log = log
+
+    def env(self):
+        # print pp.pprint(ENV)
+        return [(n, ENV[n].quantities) for n in ENV]
 
     def register(self, objects):
         for o in objects:
@@ -110,16 +117,27 @@ class Simulator(object):
                                      {2}".format(self.tunit, f.name, f.tunit))
         return True
 
-    #TODO
+    # TODO
     def check_quantity_units(self):
         pass
 
     def status(self):
-        #print "ENV:", ENV
+        if self.log:
+            # print "ENV:", ENV
+            for k, s in self.stocks.iteritems():
+                print s
+            for k, f in self.flows.iteritems():
+                print f
+
+    def step(self):
+        # step the stocks
         for k, s in self.stocks.iteritems():
-            print s
+            s.step()
+            # step the flows
         for k, f in self.flows.iteritems():
-            print f
+            f.step()
+        self.status()
+        # TODO yield ??? something
 
     def run(self, n):
         self.check_time_units()
@@ -127,13 +145,7 @@ class Simulator(object):
         self.status()
         for step in xrange(n):
             print "Step " + str(step+1)
-            # step the stocks
-            for k, s in self.stocks.iteritems():
-                s.step()
-            # step the flows
-            for k, f in self.flows.iteritems():
-                f.step()
-            self.status()
+            self.step()
 
 
 class Stock(object):
@@ -145,7 +157,7 @@ class Stock(object):
     energy, etc.
     """
     def __init__(self, flows=[], quantity=0, qunit="Unit", name=""):
-        #import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         self.flows = [PolarFlow(*f) for f in flows]
         self.quantity = quantity
         self.qunit = qunit
@@ -157,11 +169,14 @@ class Stock(object):
                                              self.qunit)
 
     def step(self):
-        for f in self.flows:
-            if f.polarity == 'OUT':
-                self.quantity -= self.simulation.flows[f.flow].calc()
-            else:
-                self.quantity += self.simulation.flows[f.flow].calc()
+        try:
+            for f in self.flows:
+                if f.polarity == 'OUT':
+                    self.quantity -= self.simulation.flows[f.flow].calc()
+                else:
+                    self.quantity += self.simulation.flows[f.flow].calc()
+        except KeyError as e:
+            raise EnvironmentError("Flow {0} not found in environment".format(e))
         # after all is said and done, update the registry
         update(self.name, self.quantity)
 
