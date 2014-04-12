@@ -1,4 +1,4 @@
-from everything import Flow, Stock, Simulator, lookup
+from everything import Flow, Stock, Simulator, lookup, plot
 
 # faucet = Flow(              # make a flow!
 #     [                       # list of modifiers
@@ -62,7 +62,9 @@ cup = Stock(                   # make a stock!
     )
 
 s = Simulator([faucet, cup, overflow])   # put them in a simulator
-s.run(10)                      # and run it for 10 steps
-s.env()
-
-import pdb; pdb.set_trace()
+s.run(20)                      # and run it for 10 steps
+lines = s.env()
+plotter = plot.Plotter(100, [])
+for line in lines:
+    plotter.addline(line[0], list(reversed(line[1])))  # yuck
+plotter.plot()
