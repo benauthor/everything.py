@@ -1,0 +1,22 @@
+[
+    {
+        "Stock": {
+            "Name": "Cup",
+            "Flows": {
+                "Faucet": "IN"
+            },
+            "Quantity": 2,
+            "Qunit": "Ounce"
+        }
+    },
+    {
+        "Flow": {
+            "Name": "Faucet",
+            "Function": "How to represent this?",
+            "Args": [
+                10.0,
+                "{hpos}"
+            ]
+        }
+    }
+]

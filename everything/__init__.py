@@ -1,6 +1,7 @@
 """
 everything.py is a stock/flow modeling kit for simulation
 
+TODO fixup example to reflect changes!
 Example:
 
 def faucetflow(max_flow, handle_position):
@@ -29,16 +30,8 @@ s.run(10)                      # and run it for 10 steps
 
 """
 from collections import namedtuple
-import pprint
-import plot
-
-pp = pprint.PrettyPrinter()
-ENV = {}
 
 PolarFlow = namedtuple('PolarFlow', ['flow', 'polarity'])
-
-RegistryEntry = namedtuple('RegistryEntry', ['simulator', 'type',
-                                             'quantities'])
 
 
 class UnitsError(Exception):
@@ -49,54 +42,62 @@ class EnvironmentError(Exception):
     pass
 
 
-def register(name, value):
-    """Add an entry to the global registry.
-
-    TODO: should this be simulator-local?
-    """
-    if ENV.get(name):
-        raise EnvironmentError("Dupicate name! The environment already\
-                                contains the name {0}".format(name))
-    else:
-        ENV[name] = value
-
-
-def update(name, value):
-    """Update the registry with a new value.
-    """
-    if not ENV.get(name):
-        raise EnvironmentError("Environment does not contain name\
-                                {0}".format(name))
-    else:
-        ENV[name].quantities.insert(0, value)
-
-
-def lookup(name):
-    """Look up the most recent value for a name in the registry.
-    """
-    entry = ENV.get(name)
-    if not entry:
-        raise EnvironmentError("Environment does not contain name\
-                                {0}".format(name))
-    else:
-        return entry.quantities[0]
-
-
 class Simulator(object):
     """Stepwise stock/flow simulator.
 
     For simulating things.
     """
     def __init__(self, objects, tunit="Second", log=True):
+        self.env = {}
         self.stocks = {}
         self.flows = {}
-        self.register(objects)
         self.tunit = tunit
         self.log = log
+        self.register(objects)
 
-    def env(self):
-        # print pp.pprint(ENV)
-        return [(n, ENV[n].quantities) for n in ENV]
+    def __iter__(self):
+        return self
+
+    def next(self):
+        result = []
+        for k, f in self.flows.iteritems():
+            result.append(f.step())
+        for k, s in self.stocks.iteritems():
+            result.append(s.step())
+        self.status()
+        return result
+
+    def state(self):
+        return [v['last'] for k, v in self.env.iteritems()]
+
+    def entry(self, name, value):
+        """Add an entry to the registry.
+        """
+        if self.env.get(name):
+            raise EnvironmentError("Dupicate name! The environment already\
+                                    contains the name {0}".format(name))
+        else:
+            self.env[name] = value
+
+    def update(self, name, value):
+        """Update the registry with a new value.
+        """
+        if not self.env.get(name):
+
+            raise EnvironmentError("Environment does not contain name\
+                                    {0}".format(name))
+        else:
+            self.env[name]['last'] = value
+
+    def lookup(self, name):
+        """Look up the most recent value for a name in the registry.
+        """
+        entry = self.env.get(name)
+        if not entry:
+            raise EnvironmentError("Environment does not contain name\
+                                    {0}".format(name))
+        else:
+            return entry['last']
 
     def register(self, objects):
         for o in objects:
@@ -104,11 +105,13 @@ class Simulator(object):
                 o.quantity  # if it has a quantity, it's a stock
                 self.stocks[o.name] = o
                 o.simulation = self
-                register(o.name, RegistryEntry(self, 'stock', [o.quantity]))
+                self.entry(o.name, {'type': 'stock',
+                                    'last': o.quantity})
             except AttributeError:
                 self.flows[o.name] = o
                 o.simulation = self
-                register(o.name, RegistryEntry(self, 'flow', []))
+                self.entry(o.name, {'type': 'flow',
+                                    'last': o.calc()})
 
     def check_time_units(self):
         for k, f in self.flows.iteritems():
@@ -124,29 +127,14 @@ class Simulator(object):
 
     def status(self):
         if self.log:
-            # print "ENV:", ENV
             for k, s in self.stocks.iteritems():
                 print s
             for k, f in self.flows.iteritems():
                 print f
 
-    def step(self):
-        # step the stocks
-        for k, s in self.stocks.iteritems():
-            s.step()
-            # step the flows
-        for k, f in self.flows.iteritems():
-            f.step()
-        self.status()
-        # TODO yield ??? something
-
     def run(self, n):
-        self.check_time_units()
-        print "Step 0"
-        self.status()
         for step in xrange(n):
-            print "Step " + str(step+1)
-            self.step()
+            yield self.next()
 
 
 class Stock(object):
@@ -179,7 +167,8 @@ class Stock(object):
         except KeyError as e:
             raise EnvironmentError("Flow {0} not found in environment".format(e))
         # after all is said and done, update the registry
-        update(self.name, self.quantity)
+        self.simulation.update(self.name, self.quantity)
+        return self.quantity
 
     def check(self):
         for f in self.flows:
@@ -212,17 +201,18 @@ class Flow(object):
                                                 self.qunit, self.tunit)
 
     def step(self):
-        update(self.name, self.calc())
+        self.simulation.update(self.name, self.calc())
+        return self.calc()
 
     def calc(self):
         prepared = []
         for i, v in enumerate(self.argmap):
             if isinstance(v, str):
-                prepared.append(eval(v))
+                prepared.append(self.simulation.lookup(v))
             else:
                 prepared.append(v)
 
-        try:  # TODO above needs to work for dicts too
+        try:
             return self.func(**prepared)
         except TypeError:
             return self.func(*prepared)

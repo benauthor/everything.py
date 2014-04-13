@@ -1,4 +1,4 @@
-from everything import Flow, Stock, Simulator, lookup, plot
+from everything import Flow, Stock, Simulator, plot
 
 # faucet = Flow(              # make a flow!
 #     [                       # list of modifiers
@@ -22,49 +22,77 @@ from everything import Flow, Stock, Simulator, lookup, plot
 # s.run()                     # and run it
 
 
-def faucetflow(max_flow, handle_position):
-    return max_flow * handle_position
+def faucetflow(max_flow, cup):
+    return max_flow * 1.0 / cup
 
 
-def overflowflow(cuplevel):
-    maxcapacity = 5
+def overflowflow(cuplevel, maxcapacity):
     if cuplevel > maxcapacity:
         return cuplevel - maxcapacity
     else:
         return 0
 
-overflow = Flow(
-    name="Overflow",
-    func=overflowflow,
-    argmap=["lookup('Cup')"],
-    qunit="Ounce",
-    tunit="Second"
+s = Simulator(
+    [                         # let's make a simulator
+        Stock(                          # it has a stock!
+            flows=(("Faucet", "IN"),    # list of flows in and out
+                   ("Overflow", "OUT"),
+                   ),
+            quantity=2,                 # initial quantity
+            qunit="Ounce",              # unit
+            name="Cup"                  # name
+            ),
+        Flow(                           # make a flow!
+            name="Faucet",              # name
+            func=faucetflow,            # the function that calculates the rate
+            argmap=[                    # the inputs to the function.
+                2.0,                    # these could be constants
+                "Cup"   # or looked up from the environment
+                ],
+            qunit="Ounce",              # unit of quantity
+            tunit="Second"              # per unit time
+            ),
+        Flow(                           # another flow!
+            name="Overflow",            # you know the drill!
+            func=overflowflow,
+            argmap=[
+                "Cup",
+                5
+                ],
+            qunit="Ounce",
+            tunit="Second"
+            )
+        ],
+    log=False
     )
 
-faucet = Flow(                 # make a flow!
-    name="Faucet",             # name
-    func=faucetflow,           # the function that calculates the rate
-    argmap=[                   # the inputs to the function.
-        2.0,                   # these could be constants
-        "1.0 / lookup('Cup')"  # or looked up from the environment
-    ],
-    qunit="Ounce",             # unit of quantity
-    tunit="Second"             # per unit time
-    )
+print s.env
+print s.state()
+plotter = plot.Plotter(100)
+for i in s.run(20):                      # now run it for some number of steps
+    plotter.plot_dumbly(i, 0, 6)
 
-cup = Stock(                   # make a stock!
-    flows=(("Faucet", "IN"),   # list of flows in and out
-           ("Overflow", "OUT"),
-           ),
-    quantity=2,                # initial quantity
-    qunit="Ounce",             # unit
-    name="Cup"                 # name
-    )
+# lines = list(s.run(20))
+# print lines
+# plotter = plot.Plotter(100, [])
+# for line in lines:
+#     plotter.plotline(line, 0, 10)
+# # for line in lines:
+#     plotter.addline(line[0], list(reversed(line[1])))  # yuck
+# plotter.plot()
+# print [s.next() for i in range(10)]
+# print s.env()
 
-s = Simulator([faucet, cup, overflow])   # put them in a simulator
-s.run(20)                      # and run it for 10 steps
-lines = s.env()
-plotter = plot.Plotter(100, [])
-for line in lines:
-    plotter.addline(line[0], list(reversed(line[1])))  # yuck
-plotter.plot()
+"""
+TODOS
+=====
+
++ think about the api
+
++ simulator scope instead of global
+
++ config'able granularity: possible to do the transforms to change timestep?
+  (sounds mathy)
+
+
+"""
