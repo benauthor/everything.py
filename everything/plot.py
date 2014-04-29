@@ -42,10 +42,13 @@ class Plotter(object):
                 line[chunks] = sym
         print ''.join(line)
 
-    def plot_dumbly(self, values, vmin, vmax):
+    def plot_dumbly(self, values, vmin, vmax, symbols=[]):
         line = [self.bg for i in range(self.width)]
-        for val in values:
-            sym = 'o'
+        for i, val in enumerate(values):
+            try:
+                sym = symbols[i]
+            except IndexError:
+                sym = 'o'
             vrange = vmax - vmin
             inc = self.width / float(vrange)
             if val > vmin and val < vmax:

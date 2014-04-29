@@ -35,12 +35,17 @@ def overflowflow(cuplevel, maxcapacity):
 s = Simulator(
     [                         # let's make a simulator
         Stock(                          # it has a stock!
-            flows=(("Faucet", "IN"),    # list of flows in and out
+            flows=[("Faucet", "IN"),    # list of flows in and out
                    ("Overflow", "OUT"),
-                   ),
+                   ],
             quantity=2,                 # initial quantity
             qunit="Ounce",              # unit
             name="Cup"                  # name
+            ),
+        Stock(
+            name="Floor",
+            flows=[("Overflow", "IN")],
+            qunit="Ounce"
             ),
         Flow(                           # make a flow!
             name="Faucet",              # name
@@ -69,6 +74,7 @@ s = Simulator(
 print s.env
 print s.state()
 plotter = plot.Plotter(100)
+plotter.plot_dumbly(s.state(), 0, 6)
 for i in s.run(20):                      # now run it for some number of steps
     plotter.plot_dumbly(i, 0, 6)
 
@@ -94,5 +100,6 @@ TODOS
 + config'able granularity: possible to do the transforms to change timestep?
   (sounds mathy)
 
++ simultaneity??
 
 """

@@ -67,8 +67,11 @@ class Simulator(object):
         self.status()
         return result
 
-    def state(self):
-        return [v['last'] for k, v in self.env.iteritems()]
+    def state(self, show_ids=False):
+        if show_ids:
+            return [(k, v) for k, v in self.env.iteritems()]
+        else:
+            return [v['last'] for k, v in self.env.iteritems()]
 
     def entry(self, name, value):
         """Add an entry to the registry.
